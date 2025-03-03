@@ -3,6 +3,7 @@
 #include <Arduino.h>
 
 #include "config.h"
+#include "main_vars.h"
 #include "mqtt_manager.h"
 
 float CanManager::number_of_cells = static_cast<float>(battery_modules * battery_cells_per_module);
@@ -91,12 +92,14 @@ void CanManager::init() {
 }
 
 bool CanManager::send(INT32U id, INT8U len, INT8U* buf) {
+  digitalWrite(LED_BUILTIN, LED_ON);
   Serial.printf("send: Standard ID: 0x%.3lX       DLC: %1d  Data:", id, len);
   for (byte i = 0; i < len; i++) {
     Serial.printf(" 0x%.2X", buf[i]);
   }
   Serial.println();
   auto result = can.sendMsgBuf(id, len, buf);
+  digitalWrite(LED_BUILTIN, LED_OFF);
   if (result == CAN_OK) {
     return true;
   } else if (result == CAN_GETTXBFTIMEOUT) {

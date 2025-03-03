@@ -4,6 +4,7 @@
 
 #include "config.h"
 #include "main_vars.h"
+#include "mqtt_manager.h"
 
 void WifiManager::connect() {
   Serial.println();
@@ -43,4 +44,5 @@ void WifiManager::syncTime() {
   tm timeInfo{};
   gmtime_r(&now, &timeInfo);
   Serial.printf("Current time: %s", asctime(&timeInfo));
+  // MqttManager::publish("last_boot", asctime(&timeInfo), true);
 }

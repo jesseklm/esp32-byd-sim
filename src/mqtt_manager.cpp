@@ -14,7 +14,12 @@
 
 PsychicMqttClient MqttManager::client;
 
+#ifdef MQTT_TOPIC
+String MqttManager::module_topic = String(MQTT_TOPIC);
+#else
 String MqttManager::module_topic;
+#endif
+
 String MqttManager::will_topic;
 
 unsigned long MqttManager::last_blink_time = 0;
@@ -49,7 +54,9 @@ static std::map<String, ValueConfig> valueMap = {
 };
 
 void MqttManager::init() {
+#ifndef MQTT_TOPIC
   module_topic = MainVars::hostname + "/";
+#endif
   client.setServer(mqtt_server);
   client.setCredentials(mqtt_user, mqtt_password);
   will_topic = module_topic + "available";
