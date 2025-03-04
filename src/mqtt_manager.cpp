@@ -10,19 +10,14 @@
 #include "config.h"
 #include "main_vars.h"
 
-#define BLINK_TIME 5000
 
 PsychicMqttClient MqttManager::client;
 
-#ifdef MQTT_TOPIC
-String MqttManager::module_topic = String(MQTT_TOPIC);
-#else
-String MqttManager::module_topic;
-#endif
-
+String MqttManager::module_topic = mqtt_topic;
 String MqttManager::will_topic;
 
 unsigned long MqttManager::last_blink_time = 0;
+unsigned long MqttManager::last_master_heartbeat_time = 0;
 
 struct QueuedMessage {
   String topic;
@@ -54,9 +49,9 @@ static std::map<String, ValueConfig> valueMap = {
 };
 
 void MqttManager::init() {
-#ifndef MQTT_TOPIC
-  module_topic = MainVars::hostname + "/";
-#endif
+  if (module_topic.length() <= 0) {
+    module_topic = MainVars::hostname + "/";
+  }
   client.setServer(mqtt_server);
   client.setCredentials(mqtt_user, mqtt_password);
   will_topic = module_topic + "available";
@@ -68,7 +63,7 @@ void MqttManager::init() {
 }
 
 void MqttManager::loop() {
-  if (millis() - last_blink_time < BLINK_TIME) {
+  if (millis() - last_blink_time < blink_time) {
     if ((millis() - last_blink_time) % 100 < 50) {
       digitalWrite(LED_BUILTIN, LED_OFF);
     } else {
@@ -87,7 +82,7 @@ void MqttManager::otaUpdate(const String& path) {
   log(String("ota started [") + path + "] (" + millis() + ")", false);
   NetworkClientSecure secure_client;
   secure_client.setCACert(trustRoot);
-  secure_client.setTimeout(12000);
+  secure_client.setTimeout(12'000);
   httpUpdate.setLedPin(LED_BUILTIN, LED_ON);
   switch (httpUpdate.update(secure_client, String("https://") + ota_server + path)) {
     case HTTP_UPDATE_FAILED: {
@@ -121,6 +116,10 @@ void MqttManager::onMessage(char* topic, char* payload, int retain, int qos, boo
   }
   if (sTopic.equals("blink")) {
     last_blink_time = millis();
+    return;
+  }
+  if (sTopic.equals(mqtt_master_heartbeat_topic)) {
+    last_master_heartbeat_time = millis();
     return;
   }
   if (sTopic.equals("restart")) {
@@ -163,7 +162,7 @@ void MqttManager::publish(const String& topic, uint32_t value, const bool retain
 
 void MqttManager::publish(const String& topic, const String& payload, const bool retain, const bool async) {
   if (async) {
-    if (messageQueue.size() > 100) {
+    if (messageQueue.size() > max_mqtt_send_queue) {
       return;
     }
     QueuedMessage msg;
@@ -200,11 +199,11 @@ void MqttManager::onConnect(bool session_present) {
   publish("hostname", MainVars::hostname, true);
   publish("module_topic", module_topic, true);
   publishInfos();
+  client.subscribe(mqtt_master_heartbeat_topic, 0);
   subscribe("+/+/set");
   subscribe("+/+/reset");
   subscribe("restart");
-  subscribe("debug");
-  subscribe("trigger");
+  // subscribe("debug");
   subscribe("blink");
   subscribe("ota");
 }

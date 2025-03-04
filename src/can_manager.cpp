@@ -136,6 +136,11 @@ void CanManager::loop() {
 }
 
 void CanManager::sendLimits() {
+  if (millis() - MqttManager::last_master_heartbeat_time >= heartbeat_timeout) {
+    limit_discharge_current_max = 0;
+    limit_charge_current_max = 0;
+    MqttManager::log("Master Heartbeat missed!");
+  }
   byte data[8]{};
   setBytes(data, 0, static_cast<uint16_t>(limit_battery_voltage_max * 10.f));   // 230V max
   setBytes(data, 2, static_cast<uint16_t>(limit_battery_voltage_min * 10.f));   // 170V min

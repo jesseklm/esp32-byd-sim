@@ -15,6 +15,7 @@ public:
     static void publish(const String& topic, const String& payload, bool retain = false, bool async = true);
     static void subscribe(const String& topic);
     static void publishInfos();
+    static unsigned long last_master_heartbeat_time;
 
 private:
     static PsychicMqttClient client;

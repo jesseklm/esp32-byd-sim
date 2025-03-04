@@ -33,7 +33,7 @@ void WifiManager::connect() {
 
 void WifiManager::syncTime() {
   Serial.print("Setting time using SNTP.");
-  configTime(2 * 3600, 0, "de.pool.ntp.org", "time.nist.gov");
+  configTzTime("CET-1CEST,M3.5.0,M10.5.0/3", "0.de.pool.ntp.org", "1.de.pool.ntp.org", "2.de.pool.ntp.org");
   time_t now = time(nullptr);
   while (now < 2 * 3600 * 2) {
     delay(500);
@@ -42,7 +42,7 @@ void WifiManager::syncTime() {
   }
   Serial.println("\nTime synchronized!");
   tm timeInfo{};
-  gmtime_r(&now, &timeInfo);
+  getLocalTime(&timeInfo);
   Serial.printf("Current time: %s", asctime(&timeInfo));
   MqttManager::publish("last_boot", asctime(&timeInfo), true);
 }
