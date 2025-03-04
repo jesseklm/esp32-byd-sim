@@ -25,11 +25,7 @@ float CanManager::soh_percent = 100.f;
 float CanManager::remaining_capacity_ah = 80.f;
 float CanManager::full_capacity_ah = 160.f;
 
-#ifdef LOLIN_C3_MINI
-const uint8_t CanManager::CAN_INT = 8;
-#elif defined(LOLIN_S2_MINI)
-const uint8_t CanManager::CAN_INT = 33;
-#endif
+const uint8_t CanManager::CAN_INT = CAN_INT_PIN;
 
 MCP_CAN CanManager::can(SS);
 
@@ -253,7 +249,7 @@ void CanManager::readMessage() {
     MqttManager::publish("inverter/timestamp", wr_timestamp);
   } else if (rxId == 0x151 && rxBuf[0] == 0x0) {
     rxBuf[len] = '\0';
-    MqttManager::publish("inverter/type", String((char*)(rxBuf + 1)), true);
+    MqttManager::publish("inverter/type", String(reinterpret_cast<char*>(rxBuf + 1)), true);
   } else if (rxId == 0x151 && rxBuf[0] == 0x1) {
     MqttManager::log("sending initMessages!");
     for (const auto& [id, data] : initMessages) {
