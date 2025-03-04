@@ -245,7 +245,7 @@ void CanManager::readMessage() {
     const auto wr_temperature = getValue<uint16_t>(rxBuf, 4);
     MqttManager::publish("inverter/battery_voltage", static_cast<float>(wr_battery_voltage) * 0.1f);
     MqttManager::publish("inverter/battery_current", static_cast<float>(wr_battery_current) * 0.1f);
-    MqttManager::publish("inverter/inverter_temperature", static_cast<float>(wr_temperature) * 0.1f);
+    MqttManager::publish("inverter/temperature", static_cast<float>(wr_temperature) * 0.1f);
   } else if (rxId == 0xd1) {
     const auto wr_soc = getValue<uint16_t>(rxBuf, 0);
     MqttManager::publish("inverter/soc", static_cast<float>(wr_soc) * 0.1f);
