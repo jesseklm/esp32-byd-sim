@@ -8,12 +8,12 @@
 
 float CanManager::number_of_cells = static_cast<float>(battery_modules * battery_cells_per_module);
 
-float CanManager::limit_battery_voltage_max = 590.4f;
-float CanManager::limit_battery_voltage_min = 489.6f;
-float CanManager::limit_discharge_current_max = 25.f;
-float CanManager::limit_charge_current_max = 25.f;
+float CanManager::limit_battery_voltage_max;
+float CanManager::limit_battery_voltage_min;
+float CanManager::limit_discharge_current_max;
+float CanManager::limit_charge_current_max;
 
-float CanManager::battery_voltage = 532.8f;
+float CanManager::battery_voltage;
 float CanManager::battery_current = 0.f;
 float CanManager::battery_temp = 12.f;
 
