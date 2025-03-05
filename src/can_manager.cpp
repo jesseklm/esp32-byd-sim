@@ -255,7 +255,10 @@ void CanManager::readMessage() {
     MqttManager::publish("inverter/timestamp", wr_timestamp);
   } else if (rxId == 0x151 && rxBuf[0] == 0x0) {
     rxBuf[len] = '\0';
-    MqttManager::publish("inverter/type", String(reinterpret_cast<char*>(rxBuf + 1)), true);
+    auto inverter_name = String(reinterpret_cast<char*>(rxBuf + 1));
+    if (inverter_name.length() > 0) {
+      MqttManager::publish("inverter/type", String(reinterpret_cast<char*>(rxBuf + 1)), true);
+    }
   } else if (rxId == 0x151 && rxBuf[0] == 0x1) {
     MqttManager::log("sending initMessages!");
     for (const auto& [id, data] : initMessages) {
