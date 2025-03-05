@@ -178,6 +178,7 @@ void CanManager::sendCellInfo() {
 }
 
 void CanManager::sendStates() {
+  remaining_capacity_ah = soc_percent / 100 * full_capacity_ah;  // calculate remaining_capacity_ah by soc
   byte data[8]{};
   setBytes(data, 0, static_cast<uint16_t>(soc_percent * 100.f));           // 28,7% soc % Vrfd
   setBytes(data, 2, static_cast<uint16_t>(soh_percent * 100.f));           // 100% soh % Vrfd
