@@ -43,6 +43,8 @@ void WifiManager::syncTime() {
   Serial.println("\nTime synchronized!");
   tm timeInfo{};
   getLocalTime(&timeInfo);
-  Serial.printf("Current time: %s", asctime(&timeInfo));
-  MqttManager::publish("last_boot", asctime(&timeInfo), true);
+  char current_time_buffer[32];
+  strftime(current_time_buffer, sizeof(current_time_buffer), "%c", &timeInfo);
+  Serial.printf("Current time: %s", current_time_buffer);
+  MqttManager::publish("last_boot", current_time_buffer, true);
 }

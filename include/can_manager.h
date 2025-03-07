@@ -2,11 +2,11 @@
 
 #include <mcp_can.h>
 
-#define CAN_EXTENDED 0x80000000
-#define CAN_REMOTE_REQUEST 0x40000000
-
 class CanManager {
  public:
+  static constexpr uint32_t CAN_EXTENDED = 0x80000000;
+  static constexpr uint32_t CAN_REMOTE_REQUEST = 0x40000000;
+
   static void init();
   static bool send(INT32U id, INT8U len, INT8U *buf);
   static void loop();

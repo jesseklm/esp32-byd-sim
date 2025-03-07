@@ -136,21 +136,23 @@ void CanManager::loop() {
 }
 
 void CanManager::sendLimits() {
+  float limit_discharge = limit_discharge_current_max;
+  float limit_charge = limit_charge_current_max;
   if (millis() - MqttManager::last_master_heartbeat_time >= heartbeat_timeout) {
-    limit_discharge_current_max = 0;
-    limit_charge_current_max = 0;
+    limit_discharge = 0;
+    limit_charge = 0;
     MqttManager::log("Master Heartbeat missed!");
   }
   byte data[8]{};
-  setBytes(data, 0, static_cast<uint16_t>(limit_battery_voltage_max * 10.f));   // 230V max
-  setBytes(data, 2, static_cast<uint16_t>(limit_battery_voltage_min * 10.f));   // 170V min
-  setBytes(data, 4, static_cast<int16_t>(limit_discharge_current_max * 10.f));  // 25,6A max discharge
-  setBytes(data, 6, static_cast<int16_t>(limit_charge_current_max * 10.f));     // 25,6A max charge
+  setBytes(data, 0, static_cast<uint16_t>(limit_battery_voltage_max * 10.f));  // 230V max
+  setBytes(data, 2, static_cast<uint16_t>(limit_battery_voltage_min * 10.f));  // 170V min
+  setBytes(data, 4, static_cast<int16_t>(limit_discharge * 10.f));             // 25,6A max discharge
+  setBytes(data, 6, static_cast<int16_t>(limit_charge * 10.f));                // 25,6A max charge
   if (send(0x110, 8, data)) {
     MqttManager::publish("limits/max_voltage", limit_battery_voltage_max);
     MqttManager::publish("limits/min_voltage", limit_battery_voltage_min);
-    MqttManager::publish("limits/max_discharge_current", limit_discharge_current_max);
-    MqttManager::publish("limits/max_charge_current", limit_charge_current_max);
+    MqttManager::publish("limits/max_discharge_current", limit_discharge);
+    MqttManager::publish("limits/max_charge_current", limit_charge);
   }
 }
 
