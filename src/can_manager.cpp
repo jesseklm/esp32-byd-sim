@@ -29,6 +29,8 @@ const uint8_t CanManager::CAN_INT = CAN_INT_PIN;
 
 MCP_CAN CanManager::can(SS);
 
+unsigned long CanManager::last_successful_send = 0;
+
 unsigned long CanManager::last_send_2s = 0;
 unsigned long CanManager::last_send_10s = 0;
 unsigned long CanManager::last_send_60s = 0;
@@ -97,10 +99,14 @@ bool CanManager::send(INT32U id, INT8U len, INT8U* buf) {
   auto result = can.sendMsgBuf(id, len, buf);
   digitalWrite(LED_BUILTIN, LED_OFF);
   if (result == CAN_OK) {
+    last_successful_send = millis();
     return true;
   } else if (result == CAN_GETTXBFTIMEOUT) {
     Serial.println("Error sending - get tx buff time out!");
     MqttManager::log("Error sending - get tx buff time out!");
+    if (millis() - last_successful_send >= 120'000) {
+      ESP.restart();
+    }
   } else if (result == CAN_SENDMSGTIMEOUT) {
     Serial.println("Error sending - send msg timeout!");
     MqttManager::log("Error sending - send msg timeout!");

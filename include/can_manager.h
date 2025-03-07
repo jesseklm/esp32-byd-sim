@@ -34,6 +34,7 @@ class CanManager {
   static MCP_CAN can;
   static const uint8_t CAN_INT;
   static bool init_failed;
+  static unsigned long last_successful_send;
   static unsigned long last_send_2s;
   static unsigned long last_send_10s;
   static unsigned long last_send_60s;
