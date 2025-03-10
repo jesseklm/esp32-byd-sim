@@ -1,8 +1,7 @@
 #include "main_vars.h"
 
-#include <esp_mac.h>
 #include <WiFi.h>
-
+#include <esp_mac.h>
 
 String MainVars::getMacAddress() {
   uint8_t mac[6];

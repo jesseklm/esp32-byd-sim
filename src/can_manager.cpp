@@ -96,12 +96,13 @@ bool CanManager::send(INT32U id, INT8U len, INT8U* buf) {
     Serial.printf(" 0x%.2X", buf[i]);
   }
   Serial.println();
-  auto result = can.sendMsgBuf(id, len, buf);
+  const auto result = can.sendMsgBuf(id, len, buf);
   digitalWrite(LED_BUILTIN, LED_OFF);
   if (result == CAN_OK) {
     last_successful_send = millis();
     return true;
-  } else if (result == CAN_GETTXBFTIMEOUT) {
+  }
+  if (result == CAN_GETTXBFTIMEOUT) {
     Serial.println("Error sending - get tx buff time out!");
     MqttManager::log("Error sending - get tx buff time out!");
     if (millis() - last_successful_send >= 120'000) {
@@ -207,13 +208,13 @@ void CanManager::sendAlarm() {
 
 void CanManager::readMessages() {
   if (!digitalRead(CAN_INT)) {
-    unsigned long start_time = millis();
+    const unsigned long start_time = millis();
     while (millis() - start_time <= 100) {
       while (!digitalRead(CAN_INT)) {
         readMessage();
       }
     }
-    uint8_t eflg = can.getError();
+    const uint8_t eflg = can.getError();
     if (eflg & MCP_EFLG_RX1OVR || eflg & MCP_EFLG_RX0OVR) {
       Serial.println("buffer overflow!");
       MqttManager::log("buffer overflow!");
@@ -263,8 +264,7 @@ void CanManager::readMessage() {
     MqttManager::publish("inverter/timestamp", wr_timestamp);
   } else if (rxId == 0x151 && rxBuf[0] == 0x0) {
     rxBuf[len] = '\0';
-    auto inverter_name = String(reinterpret_cast<char*>(rxBuf + 1));
-    if (inverter_name.length() > 0) {
+    if (const auto inverter_name = String(reinterpret_cast<char*>(rxBuf + 1)); inverter_name.length() > 0) {
       MqttManager::publish("inverter/type", String(reinterpret_cast<char*>(rxBuf + 1)), true);
     }
   } else if (rxId == 0x151 && rxBuf[0] == 0x1) {

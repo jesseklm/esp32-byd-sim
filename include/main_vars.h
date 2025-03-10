@@ -17,13 +17,12 @@ constexpr unsigned int blink_time = 5'000;
 #define CAN_INT_PIN 33
 #endif
 
-class MainVars
-{
-public:
-    static String device_type;
-    static String mac_address;
-    static String hostname;
+class MainVars {
+ public:
+  static String device_type;
+  static String mac_address;
+  static String hostname;
 
-private:
-    static String getMacAddress();
+ private:
+  static String getMacAddress();
 };

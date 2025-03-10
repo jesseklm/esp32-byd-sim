@@ -4,12 +4,11 @@
 #include <HTTPUpdate.h>
 
 #include <map>
-#include <queue>
+#include <set>
 
 #include "can_manager.h"
 #include "config.h"
 #include "main_vars.h"
-
 
 PsychicMqttClient MqttManager::client;
 
@@ -23,9 +22,16 @@ struct QueuedMessage {
   String topic;
   String payload;
   bool retain;
+  int priority;
 };
 
-static std::queue<QueuedMessage> messageQueue;
+struct MessageComparator {
+  bool operator()(const QueuedMessage& a, const QueuedMessage& b) const {
+    return a.priority > b.priority;  // high priority first
+  }
+};
+
+static std::multiset<QueuedMessage, MessageComparator> messageQueue;
 
 struct ValueConfig {
   float* valuePtr;
@@ -73,9 +79,10 @@ void MqttManager::loop() {
   if (!client.connected() || messageQueue.empty()) {
     return;
   }
-  auto& [topic, payload, retain] = messageQueue.front();
-  client.publish(topic.c_str(), 0, retain, payload.c_str(), 0, false);
-  messageQueue.pop();
+  const auto it = messageQueue.begin();
+  const QueuedMessage& msg = *it;  // highest priority message
+  client.publish(msg.topic.c_str(), 0, msg.retain, msg.payload.c_str(), 0, false);
+  messageQueue.erase(it);
 }
 
 void MqttManager::otaUpdate(const String& path) {
@@ -150,26 +157,32 @@ void MqttManager::onMessage(char* topic, char* payload, int retain, int qos, boo
   }
 }
 
-void MqttManager::log(const String& line, const bool async) { publish("log", line, false, async); }
-
-void MqttManager::publish(const String& topic, float value, const bool retain, const bool async) {
-  publish(topic, String(value), retain, async);
+void MqttManager::log(const String& line, const bool async, const int priority) {
+  publish("log", line, false, async, priority);
 }
 
-void MqttManager::publish(const String& topic, uint32_t value, const bool retain, const bool async) {
-  publish(topic, String(value), retain, async);
+void MqttManager::publish(const String& topic, const float value, const bool retain, const bool async,
+                          const int priority) {
+  publish(topic, String(value), retain, async, priority);
 }
 
-void MqttManager::publish(const String& topic, const String& payload, const bool retain, const bool async) {
+void MqttManager::publish(const String& topic, const uint32_t value, const bool retain, const bool async,
+                          const int priority) {
+  publish(topic, String(value), retain, async, priority);
+}
+
+void MqttManager::publish(const String& topic, const String& payload, const bool retain, const bool async,
+                          const int priority) {
   if (async) {
-    if (messageQueue.size() > max_mqtt_send_queue) {
-      return;
+    const QueuedMessage msg{module_topic + topic, payload, retain, priority};
+    if (messageQueue.size() >= max_mqtt_send_queue) {
+      if (const auto it = --messageQueue.end(); priority > it->priority) {
+        messageQueue.erase(it);  // delete lowest priority message
+        messageQueue.insert(msg);
+      }
+    } else {
+      messageQueue.insert(msg);
     }
-    QueuedMessage msg;
-    msg.topic = module_topic + topic;
-    msg.payload = payload;
-    msg.retain = retain;
-    messageQueue.push(msg);
   } else {
     client.publish((module_topic + topic).c_str(), 0, retain, payload.c_str(), 0, false);
   }
@@ -180,24 +193,25 @@ void MqttManager::subscribe(const String& topic) { client.subscribe((module_topi
 void MqttManager::publishInfos() {
   // publish("version", VERSION, true);
   // publish("build_timestamp", BUILD_TIMESTAMP, true);
-  publish("wifi", WiFi.SSID(), true);
-  publish("ip", WiFi.localIP().toString(), true);
-  publish("esp_sdk", ESP.getSdkVersion(), true);
+  publish("wifi", WiFi.SSID(), true, true, 20);
+  publish("ip", WiFi.localIP().toString(), true, true, 40);
+  publish("esp_sdk", ESP.getSdkVersion(), true, true, 20);
   publish("cpu",
           String(ESP.getChipModel()) + " rev " + ESP.getChipRevision() + " " + ESP.getChipCores() + "x" +
               ESP.getCpuFreqMHz() + "MHz",
-          true);
-  publish("flash", String(ESP.getFlashChipSize() / 1024 / 1024) + " MiB, Mode: " + ESP.getFlashChipMode(), true);
-  publish("heap", String(ESP.getHeapSize() / 1024) + " KiB", true);
-  publish("psram", String(ESP.getPsramSize() / 1024) + " KiB", true);
+          true, true, 20);
+  publish("flash", String(ESP.getFlashChipSize() / 1024 / 1024) + " MiB, Mode: " + ESP.getFlashChipMode(), true, true,
+          20);
+  publish("heap", String(ESP.getHeapSize() / 1024) + " KiB", true, true, 20);
+  publish("psram", String(ESP.getPsramSize() / 1024) + " KiB", true, true, 20);
   // publish("build_time", unixToTime(CURRENT_TIME), true);
 }
 
 void MqttManager::onConnect(bool session_present) {
   Serial.println("connected");
-  publish("available", "online", true);
-  publish("hostname", MainVars::hostname, true);
-  publish("module_topic", module_topic, true);
+  publish("available", "online", true, true, 100);
+  publish("hostname", MainVars::hostname, true, true, 20);
+  publish("module_topic", module_topic, true, true, 20);
   publishInfos();
   client.subscribe(mqtt_master_heartbeat_topic, 0);
   subscribe("+/+/set");
