@@ -1,8 +1,9 @@
 #include "can_manager.h"
 
-#include <Arduino.h>
+#include <driver/twai.h>
 
 #include "config.h"
+#include "esp32_can.h"
 #include "main_vars.h"
 #include "mqtt_manager.h"
 
@@ -24,10 +25,6 @@ float CanManager::soc_percent = 50.f;
 float CanManager::soh_percent = 100.f;
 float CanManager::remaining_capacity_ah = 80.f;
 float CanManager::full_capacity_ah = 160.f;
-
-const uint8_t CanManager::CAN_INT = CAN_INT_PIN;
-
-MCP_CAN CanManager::can(SS);
 
 unsigned long CanManager::last_successful_send = 0;
 
@@ -78,44 +75,17 @@ void CanManager::init() {
   limit_discharge_current_max = max_current;
   limit_charge_current_max = max_current;
   battery_voltage = default_cell_voltage * number_of_cells;
-  if (can.begin(MCP_ANY, CAN_500KBPS, MCP_16MHZ) == CAN_OK) {
-    Serial.println("MCP2515 Initialized Successfully!");
-  } else {
-    Serial.println("Error Initializing MCP2515...");
-    MqttManager::log("Error Initializing MCP2515...");
-    init_failed = true;
-  }
-  can.setMode(MCP_NORMAL);
-  pinMode(CAN_INT, INPUT);
+  init_failed = !ESP32Can::init();
 }
 
-bool CanManager::send(INT32U id, INT8U len, INT8U* buf) {
+bool CanManager::send(uint32_t id, uint8_t len, uint8_t* buf) {
   digitalWrite(LED_BUILTIN, LED_ON);
-  Serial.printf("send: Standard ID: 0x%.3lX       DLC: %1d  Data:", id, len);
-  for (byte i = 0; i < len; i++) {
-    Serial.printf(" 0x%.2X", buf[i]);
-  }
-  Serial.println();
-  const auto result = can.sendMsgBuf(id, len, buf);
+  bool send_successful = ESP32Can::send(id, len, buf);
   digitalWrite(LED_BUILTIN, LED_OFF);
-  if (result == CAN_OK) {
+  if (send_successful) {
     last_successful_send = millis();
-    return true;
   }
-  if (result == CAN_GETTXBFTIMEOUT) {
-    Serial.println("Error sending - get tx buff time out!");
-    MqttManager::log("Error sending - get tx buff time out!");
-    if (millis() - last_successful_send >= 120'000) {
-      ESP.restart();
-    }
-  } else if (result == CAN_SENDMSGTIMEOUT) {
-    Serial.println("Error sending - send msg timeout!");
-    MqttManager::log("Error sending - send msg timeout!");
-  } else {
-    Serial.println("Error sending - unknown error!");
-    MqttManager::log("Error sending - unknown error!");
-  }
-  return false;
+  return send_successful;
 }
 
 void CanManager::loop() {
@@ -207,74 +177,74 @@ void CanManager::sendAlarm() {
 }
 
 void CanManager::readMessages() {
-  if (!digitalRead(CAN_INT)) {
-    const unsigned long start_time = millis();
-    while (millis() - start_time <= 100) {
-      while (!digitalRead(CAN_INT)) {
-        readMessage();
-      }
-    }
-    const uint8_t eflg = can.getError();
-    if (eflg & MCP_EFLG_RX1OVR || eflg & MCP_EFLG_RX0OVR) {
-      Serial.println("buffer overflow!");
-      MqttManager::log("buffer overflow!");
-      can.resetOverflowErrors();
-    }
-  }
+  // if (!digitalRead(CAN_INT)) {
+  //   const unsigned long start_time = millis();
+  //   while (millis() - start_time <= 100) {
+  //     while (!digitalRead(CAN_INT)) {
+  //       readMessage();
+  //     }
+  //   }
+  //   const uint8_t eflg = can.getError();
+  //   if (eflg & MCP_EFLG_RX1OVR || eflg & MCP_EFLG_RX0OVR) {
+  //     Serial.println("buffer overflow!");
+  //     MqttManager::log("buffer overflow!");
+  //     can.resetOverflowErrors();
+  //   }
+  // }
 }
 
 void CanManager::readMessage() {
-  unsigned long rxId;
-  unsigned char len = 0;
-  unsigned char rxBuf[9];
-  // char msgString[128];
-  // If CAN0_INT pin is low, read receive buffer
-  can.readMsgBuf(&rxId, &len, rxBuf);
-  // Read data: len = data length, buf = data byte(s)
-  Serial.print("recv: ");
+  // unsigned long rxId;
+  // unsigned char len = 0;
+  // unsigned char rxBuf[9];
+  // // char msgString[128];
+  // // If CAN0_INT pin is low, read receive buffer
+  // can.readMsgBuf(&rxId, &len, rxBuf);
+  // // Read data: len = data length, buf = data byte(s)
+  // Serial.print("recv: ");
 
-  if ((rxId & CAN_EXTENDED) == CAN_EXTENDED)
-    // Determine if ID is standard (11 bits) or extended (29 bits)
-    Serial.printf("Extended ID: 0x%.8lX  DLC: %1d  Data:", (rxId & 0x1FFFFFFF), len);
-  else
-    Serial.printf("Standard ID: 0x%.3lX       DLC: %1d  Data:", rxId, len);
+  // if ((rxId & CAN_EXTENDED) == CAN_EXTENDED)
+  //   // Determine if ID is standard (11 bits) or extended (29 bits)
+  //   Serial.printf("Extended ID: 0x%.8lX  DLC: %1d  Data:", (rxId & 0x1FFFFFFF), len);
+  // else
+  //   Serial.printf("Standard ID: 0x%.3lX       DLC: %1d  Data:", rxId, len);
 
-  if ((rxId & CAN_REMOTE_REQUEST) == CAN_REMOTE_REQUEST) {
-    // Determine if message is a remote request frame.
-    Serial.print(" REMOTE REQUEST FRAME");
-  } else {
-    for (byte i = 0; i < len; i++) {
-      Serial.printf(" 0x%.2X", rxBuf[i]);
-    }
-    Serial.println();
-  }
+  // if ((rxId & CAN_REMOTE_REQUEST) == CAN_REMOTE_REQUEST) {
+  //   // Determine if message is a remote request frame.
+  //   Serial.print(" REMOTE REQUEST FRAME");
+  // } else {
+  //   for (byte i = 0; i < len; i++) {
+  //     Serial.printf(" 0x%.2X", rxBuf[i]);
+  //   }
+  //   Serial.println();
+  // }
 
-  if (rxId == 0x91) {
-    const auto wr_battery_voltage = getValue<uint16_t>(rxBuf, 0);
-    const auto wr_battery_current = getValue<uint16_t>(rxBuf, 2);
-    const auto wr_temperature = getValue<uint16_t>(rxBuf, 4);
-    MqttManager::publish("inverter/battery_voltage", static_cast<float>(wr_battery_voltage) * 0.1f);
-    MqttManager::publish("inverter/battery_current", static_cast<float>(wr_battery_current) * 0.1f);
-    MqttManager::publish("inverter/temperature", static_cast<float>(wr_temperature) * 0.1f);
-  } else if (rxId == 0xd1) {
-    const auto wr_soc = getValue<uint16_t>(rxBuf, 0);
-    MqttManager::publish("inverter/soc", static_cast<float>(wr_soc) * 0.1f);
-  } else if (rxId == 0x111) {
-    const auto wr_timestamp = getValue<uint32_t>(rxBuf, 0);
-    MqttManager::publish("inverter/timestamp", wr_timestamp);
-  } else if (rxId == 0x151 && rxBuf[0] == 0x0) {
-    rxBuf[len] = '\0';
-    if (const auto inverter_name = String(reinterpret_cast<char*>(rxBuf + 1)); inverter_name.length() > 0) {
-      MqttManager::publish("inverter/type", String(reinterpret_cast<char*>(rxBuf + 1)), true);
-    }
-  } else if (rxId == 0x151 && rxBuf[0] == 0x1) {
-    MqttManager::log("sending initMessages!");
-    for (const auto& [id, data] : initMessages) {
-      for (int attempts = 0; attempts < 3 && !send(id, 8, const_cast<byte*>(data)); attempts++) {
-        delay(3);
-      }
-    }
-  } else {
-    // MqttManager::log(fullLog);
-  }
+  // if (rxId == 0x91) {
+  //   const auto wr_battery_voltage = getValue<uint16_t>(rxBuf, 0);
+  //   const auto wr_battery_current = getValue<uint16_t>(rxBuf, 2);
+  //   const auto wr_temperature = getValue<uint16_t>(rxBuf, 4);
+  //   MqttManager::publish("inverter/battery_voltage", static_cast<float>(wr_battery_voltage) * 0.1f);
+  //   MqttManager::publish("inverter/battery_current", static_cast<float>(wr_battery_current) * 0.1f);
+  //   MqttManager::publish("inverter/temperature", static_cast<float>(wr_temperature) * 0.1f);
+  // } else if (rxId == 0xd1) {
+  //   const auto wr_soc = getValue<uint16_t>(rxBuf, 0);
+  //   MqttManager::publish("inverter/soc", static_cast<float>(wr_soc) * 0.1f);
+  // } else if (rxId == 0x111) {
+  //   const auto wr_timestamp = getValue<uint32_t>(rxBuf, 0);
+  //   MqttManager::publish("inverter/timestamp", wr_timestamp);
+  // } else if (rxId == 0x151 && rxBuf[0] == 0x0) {
+  //   rxBuf[len] = '\0';
+  //   if (const auto inverter_name = String(reinterpret_cast<char*>(rxBuf + 1)); inverter_name.length() > 0) {
+  //     MqttManager::publish("inverter/type", String(reinterpret_cast<char*>(rxBuf + 1)), true);
+  //   }
+  // } else if (rxId == 0x151 && rxBuf[0] == 0x1) {
+  //   MqttManager::log("sending initMessages!");
+  //   for (const auto& [id, data] : initMessages) {
+  //     for (int attempts = 0; attempts < 3 && !send(id, 8, const_cast<byte*>(data)); attempts++) {
+  //       delay(3);
+  //     }
+  //   }
+  // } else {
+  //   // MqttManager::log(fullLog);
+  // }
 }

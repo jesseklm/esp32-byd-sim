@@ -1,6 +1,6 @@
 #pragma once
 
-#include <mcp_can.h>
+#include <Arduino.h>
 
 class CanManager {
  public:
@@ -8,7 +8,7 @@ class CanManager {
   static constexpr uint32_t CAN_REMOTE_REQUEST = 0x40000000;
 
   static void init();
-  static bool send(INT32U id, INT8U len, INT8U *buf);
+  static bool send(uint32_t id, uint8_t len, uint8_t *buf);
   static void loop();
 
   static float number_of_cells;
@@ -31,8 +31,8 @@ class CanManager {
   static float full_capacity_ah;
 
  private:
-  static MCP_CAN can;
-  static const uint8_t CAN_INT;
+  // static MCP_CAN can;
+  // static const uint8_t CAN_INT;
   static bool init_failed;
   static unsigned long last_successful_send;
   static unsigned long last_send_2s;

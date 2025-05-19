@@ -14,7 +14,8 @@ constexpr unsigned int blink_time = 5'000;
 #ifdef LOLIN_C3_MINI
 #define CAN_INT_PIN 8
 #elif defined(LOLIN_S2_MINI)
-#define CAN_INT_PIN 33
+#define CAN_TX_PIN 35
+#define CAN_RX_PIN 9
 #endif
 
 class MainVars {
