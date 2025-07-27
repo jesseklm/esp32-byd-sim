@@ -18,6 +18,8 @@ String MqttManager::will_topic;
 unsigned long MqttManager::last_blink_time = 0;
 unsigned long MqttManager::last_master_heartbeat_time = 0;
 
+constexpr unsigned long MASTER_HEARTBEAT_TIMEOUT_MS = 10UL * 60UL * 1000UL;
+
 struct QueuedMessage {
   String topic;
   String payload;
@@ -66,6 +68,7 @@ void MqttManager::init() {
   client.onConnect(onConnect);
   client.onMessage(onMessage);
   client.connect();
+  last_master_heartbeat_time = millis();
 }
 
 void MqttManager::loop() {
@@ -76,7 +79,12 @@ void MqttManager::loop() {
       digitalWrite(LED_BUILTIN, LED_ON);
     }
   }
-  if (millis() - last_master_heartbeat_time >= 10 * 60 * 1'000) {
+  unsigned long last_heartbeat = last_master_heartbeat_time;
+  unsigned long delta = millis() - last_heartbeat;
+  if (delta >= MASTER_HEARTBEAT_TIMEOUT_MS) {
+    log(String("DEBUG check: delta=")+String(delta)+", limit="+String(MASTER_HEARTBEAT_TIMEOUT_MS), false);
+    log(String(millis()) + " : " + String(last_heartbeat), false);
+    log("master heartbeat timeout - restarting!", false);
     ESP.restart();
   }
   if (!client.connected() || messageQueue.empty()) {
@@ -92,7 +100,7 @@ void MqttManager::otaUpdate(const String& path) {
   log(String("ota started [") + path + "] (" + millis() + ")", false);
   NetworkClientSecure secure_client;
   secure_client.setCACert(trustRoot);
-  secure_client.setTimeout(12'000);
+  secure_client.setTimeout(12UL * 1000UL);
   httpUpdate.setLedPin(LED_BUILTIN, LED_ON);
   switch (httpUpdate.update(secure_client, String("https://") + ota_server + path)) {
     case HTTP_UPDATE_FAILED: {
@@ -133,6 +141,7 @@ void MqttManager::onMessage(char* topic, char* payload, int retain, int qos, boo
     return;
   }
   if (sTopic.equals("restart")) {
+    log("restart requested - restarting!", false);
     ESP.restart();
   }
   const bool isSet = sTopic.endsWith("/set");

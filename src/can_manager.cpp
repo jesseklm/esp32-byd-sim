@@ -105,7 +105,8 @@ bool CanManager::send(INT32U id, INT8U len, INT8U* buf) {
   if (result == CAN_GETTXBFTIMEOUT) {
     Serial.println("Error sending - get tx buff time out!");
     MqttManager::log("Error sending - get tx buff time out!");
-    if (millis() - last_successful_send >= 3 * 60 * 1'000) {
+    if (millis() - last_successful_send >= 3UL * 60UL * 1000UL) {
+      MqttManager::log("tx buff timeout - restarting!", false);
       ESP.restart();
     }
   } else if (result == CAN_SENDMSGTIMEOUT) {
@@ -120,23 +121,24 @@ bool CanManager::send(INT32U id, INT8U len, INT8U* buf) {
 
 void CanManager::loop() {
   if (init_failed) {
-    if (millis() >= 5 * 60 * 1'000) {
+    if (millis() >= 5UL * 60UL * 1000UL) {
+      MqttManager::log("can init failed - restarting!", false);
       ESP.restart();
     }
     return;
   }
   readMessages();
-  if (millis() - last_send_2s >= 2 * 1'000) {
+  if (millis() - last_send_2s >= 2UL * 1000UL) {
     last_send_2s = millis();
     sendLimits();
   }
-  if (millis() - last_send_10s >= 10 * 1'000) {
+  if (millis() - last_send_10s >= 10UL * 1000UL) {
     last_send_10s = millis();
     sendCellInfo();
     sendBatteryInfo();
     sendStates();
   }
-  if (millis() - last_send_60s >= 60 * 1'000) {
+  if (millis() - last_send_60s >= 60UL * 1000UL) {
     last_send_60s = millis();
     sendAlarm();
   }

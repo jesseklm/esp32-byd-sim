@@ -6,9 +6,9 @@
 #include "main_vars.h"
 #include "mqtt_manager.h"
 
-constexpr uint32_t sntp_timeout_ms = 10 * 1'000;
-constexpr uint32_t wifi_timeout_ms = 30 * 1'000;
-constexpr time_t min_time_s = 24 * 60 * 60;
+constexpr unsigned long sntp_timeout_ms = 10UL * 1000UL;
+constexpr unsigned long wifi_timeout_ms = 30UL * 1000UL;
+constexpr time_t min_time_s = 24UL * 60UL * 60UL;
 
 void WifiManager::connect() {
   Serial.println();
@@ -23,7 +23,7 @@ void WifiManager::connect() {
 #ifdef LOLIN_C3_MINI_V1
   WiFi.setTxPower(WIFI_POWER_8_5dBm);
 #endif
-  const uint32_t start = millis();
+  const unsigned long start = millis();
   while (WiFi.status() != WL_CONNECTED) {
     if (millis() - start >= wifi_timeout_ms) {
       ESP.restart();
@@ -45,7 +45,7 @@ void WifiManager::syncTime() {
   Serial.print("Setting time using SNTP.");
   configTzTime("CET-1CEST,M3.5.0,M10.5.0/3", "0.de.pool.ntp.org", "1.de.pool.ntp.org", "2.de.pool.ntp.org");
   time_t now = time(nullptr);
-  const uint32_t start = millis();
+  const unsigned long start = millis();
   while (now < min_time_s && millis() - start < sntp_timeout_ms) {
     delay(500);
     Serial.print(".");
