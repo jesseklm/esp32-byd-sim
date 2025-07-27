@@ -76,6 +76,9 @@ void MqttManager::loop() {
       digitalWrite(LED_BUILTIN, LED_ON);
     }
   }
+  if (millis() - last_master_heartbeat_time >= 10 * 60 * 1'000) {
+    ESP.restart();
+  }
   if (!client.connected() || messageQueue.empty()) {
     return;
   }
