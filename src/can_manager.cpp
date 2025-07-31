@@ -87,6 +87,10 @@ void CanManager::init() {
   }
   can.setMode(MCP_NORMAL);
   pinMode(CAN_INT, INPUT);
+  const unsigned long now = millis();
+  last_send_2s = now;
+  last_send_10s = now + 333UL;
+  last_send_60s = now + 667UL;
 }
 
 bool CanManager::send(INT32U id, INT8U len, INT8U* buf) {
