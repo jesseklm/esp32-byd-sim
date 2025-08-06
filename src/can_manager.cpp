@@ -2,6 +2,8 @@
 
 #include <driver/twai.h>
 
+#include <map>
+
 #include "config.h"
 #include "esp32_can.h"
 #include "main_vars.h"
@@ -15,24 +17,40 @@ float CanManager::limit_discharge_current_max;
 float CanManager::limit_charge_current_max;
 
 float CanManager::battery_voltage;
-float CanManager::battery_current = 0.f;
-float CanManager::battery_temp = 12.f;
+float CanManager::battery_current;
+float CanManager::battery_temp;
 
-float CanManager::cell_temp_max = 13.f;
-float CanManager::cell_temp_min = 11.f;
+float CanManager::cell_temp_max;
+float CanManager::cell_temp_min;
 
-float CanManager::soc_percent = 50.f;
-float CanManager::soh_percent = 100.f;
-float CanManager::remaining_capacity_ah = 80.f;
-float CanManager::full_capacity_ah = 160.f;
+float CanManager::soc_percent;
+float CanManager::soh_percent;
+float CanManager::remaining_capacity_ah;
+float CanManager::full_capacity_ah;
 
 unsigned long CanManager::last_successful_send = 0;
 
-unsigned long CanManager::last_send_2s = 0;
-unsigned long CanManager::last_send_10s = 0;
-unsigned long CanManager::last_send_60s = 0;
+unsigned long CanManager::last_send_2s;
+unsigned long CanManager::last_send_10s;
+unsigned long CanManager::last_send_60s;
 
 bool CanManager::init_failed = false;
+
+std::map<String, ValueConfig> CanManager::value_map = {
+    {"limits/max_voltage", {&limit_battery_voltage_max, max_cell_voltage* number_of_cells}},
+    {"limits/min_voltage", {&limit_battery_voltage_min, min_cell_voltage* number_of_cells}},
+    {"limits/max_discharge_current", {&limit_discharge_current_max, max_current}},
+    {"limits/max_charge_current", {&limit_charge_current_max, max_current}},
+    {"battery/voltage", {&battery_voltage, default_cell_voltage* number_of_cells}},
+    {"battery/current", {&battery_current, 0.f}},
+    {"battery/temp", {&battery_temp, 12.f}},
+    {"battery/max_cell_temp", {&cell_temp_max, 13.f}},
+    {"battery/min_cell_temp", {&cell_temp_min, 11.f}},
+    {"battery/soc", {&soc_percent, 50.f}},
+    {"battery/soh", {&soh_percent, 100.f}},
+    {"battery/remaining_capacity_ah", {&remaining_capacity_ah, 80.f}},
+    {"battery/full_capacity_ah", {&full_capacity_ah, 160.f}},
+};
 
 struct Message {
   unsigned long id;
@@ -70,12 +88,14 @@ T getValue(const uint8_t* data, const size_t start) {
 }
 
 void CanManager::init() {
-  limit_battery_voltage_max = max_cell_voltage * number_of_cells;
-  limit_battery_voltage_min = min_cell_voltage * number_of_cells;
-  limit_discharge_current_max = max_current;
-  limit_charge_current_max = max_current;
-  battery_voltage = default_cell_voltage * number_of_cells;
+  for (auto& [key, value] : value_map) {
+    *value.valuePtr = value.defaultValue;
+  }
   init_failed = !ESP32Can::init();
+  const unsigned long now = millis();
+  last_send_2s = now;
+  last_send_10s = now + 333UL;
+  last_send_60s = now + 667UL;
 }
 
 bool CanManager::send(uint32_t id, uint8_t len, uint8_t* buf) {
@@ -90,23 +110,24 @@ bool CanManager::send(uint32_t id, uint8_t len, uint8_t* buf) {
 
 void CanManager::loop() {
   if (init_failed) {
-    if (millis() >= 300'000) {
+    if (millis() >= 5UL * 60UL * 1000UL) {
+      MqttManager::log("can init failed - restarting!", false);
       ESP.restart();
     }
     return;
   }
   readMessages();
-  if (millis() - last_send_2s >= 2'000) {
+  if (millis() - last_send_2s >= 2UL * 1000UL) {
     last_send_2s = millis();
     sendLimits();
   }
-  if (millis() - last_send_10s >= 10'000) {
+  if (millis() - last_send_10s >= 10UL * 1000UL) {
     last_send_10s = millis();
     sendCellInfo();
     sendBatteryInfo();
     sendStates();
   }
-  if (millis() - last_send_60s >= 60'000) {
+  if (millis() - last_send_60s >= 60UL * 1000UL) {
     last_send_60s = millis();
     sendAlarm();
   }
@@ -115,7 +136,7 @@ void CanManager::loop() {
 void CanManager::sendLimits() {
   float limit_discharge = limit_discharge_current_max;
   float limit_charge = limit_charge_current_max;
-  if (millis() - MqttManager::last_master_heartbeat_time >= heartbeat_timeout) {
+  if (millis() - MqttManager::last_master_heartbeat_time >= heartbeat_timeout_limits_ms) {
     limit_discharge = 0;
     limit_charge = 0;
     MqttManager::log("Master Heartbeat missed!");
@@ -177,10 +198,10 @@ void CanManager::sendAlarm() {
 }
 
 void CanManager::readMessages() {
-  // if (!digitalRead(CAN_INT)) {
+  // if (!digitalRead(can_int_pin)) {
   //   const unsigned long start_time = millis();
   //   while (millis() - start_time <= 100) {
-  //     while (!digitalRead(CAN_INT)) {
+  //     while (!digitalRead(can_int_pin)) {
   //       readMessage();
   //     }
   //   }
@@ -219,32 +240,32 @@ void CanManager::readMessage() {
   //   Serial.println();
   // }
 
-  // if (rxId == 0x91) {
-  //   const auto wr_battery_voltage = getValue<uint16_t>(rxBuf, 0);
-  //   const auto wr_battery_current = getValue<uint16_t>(rxBuf, 2);
-  //   const auto wr_temperature = getValue<uint16_t>(rxBuf, 4);
-  //   MqttManager::publish("inverter/battery_voltage", static_cast<float>(wr_battery_voltage) * 0.1f);
-  //   MqttManager::publish("inverter/battery_current", static_cast<float>(wr_battery_current) * 0.1f);
-  //   MqttManager::publish("inverter/temperature", static_cast<float>(wr_temperature) * 0.1f);
-  // } else if (rxId == 0xd1) {
-  //   const auto wr_soc = getValue<uint16_t>(rxBuf, 0);
-  //   MqttManager::publish("inverter/soc", static_cast<float>(wr_soc) * 0.1f);
-  // } else if (rxId == 0x111) {
-  //   const auto wr_timestamp = getValue<uint32_t>(rxBuf, 0);
-  //   MqttManager::publish("inverter/timestamp", wr_timestamp);
-  // } else if (rxId == 0x151 && rxBuf[0] == 0x0) {
-  //   rxBuf[len] = '\0';
-  //   if (const auto inverter_name = String(reinterpret_cast<char*>(rxBuf + 1)); inverter_name.length() > 0) {
-  //     MqttManager::publish("inverter/type", String(reinterpret_cast<char*>(rxBuf + 1)), true);
-  //   }
-  // } else if (rxId == 0x151 && rxBuf[0] == 0x1) {
-  //   MqttManager::log("sending initMessages!");
-  //   for (const auto& [id, data] : initMessages) {
-  //     for (int attempts = 0; attempts < 3 && !send(id, 8, const_cast<byte*>(data)); attempts++) {
-  //       delay(3);
-  //     }
-  //   }
-  // } else {
-  //   // MqttManager::log(fullLog);
-  // }
+  if (rxId == 0x91) {
+    const auto wr_battery_voltage = getValue<uint16_t>(rxBuf, 0);
+    const auto wr_battery_current = getValue<uint16_t>(rxBuf, 2);
+    const auto wr_temperature = getValue<uint16_t>(rxBuf, 4);
+    MqttManager::publish("inverter/battery_voltage", static_cast<float>(wr_battery_voltage) * 0.1f);
+    MqttManager::publish("inverter/battery_current", static_cast<float>(wr_battery_current) * 0.1f);
+    MqttManager::publish("inverter/temperature", static_cast<float>(wr_temperature) * 0.1f);
+  } else if (rxId == 0xd1) {
+    const auto wr_soc = getValue<uint16_t>(rxBuf, 0);
+    MqttManager::publish("inverter/soc", static_cast<float>(wr_soc) * 0.1f);
+  } else if (rxId == 0x111) {
+    const auto wr_timestamp = getValue<uint32_t>(rxBuf, 0);
+    MqttManager::publish("inverter/timestamp", wr_timestamp);
+  } else if (rxId == 0x151 && rxBuf[0] == 0x0) {
+    rxBuf[len] = '\0';
+    if (const auto inverter_name = String(reinterpret_cast<char*>(rxBuf + 1)); inverter_name.length() > 0) {
+      MqttManager::publish("inverter/type", String(reinterpret_cast<char*>(rxBuf + 1)), true);
+    }
+  } else if (rxId == 0x151 && rxBuf[0] == 0x1) {
+    MqttManager::log("sending initMessages!");
+    for (const auto& [id, data] : initMessages) {
+      for (int attempts = 0; attempts < 3 && !send(id, 8, const_cast<byte*>(data)); attempts++) {
+        delayMicroseconds(10);
+      }
+    }
+  } else {
+    // MqttManager::log(fullLog);
+  }
 }

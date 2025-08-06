@@ -33,27 +33,6 @@ struct MessageComparator {
 
 static std::multiset<QueuedMessage, MessageComparator> messageQueue;
 
-struct ValueConfig {
-  float* valuePtr;
-  float defaultValue;
-};
-
-static std::map<String, ValueConfig> valueMap = {
-    {"limits/max_voltage", {&CanManager::limit_battery_voltage_max, max_cell_voltage* CanManager::number_of_cells}},
-    {"limits/min_voltage", {&CanManager::limit_battery_voltage_min, min_cell_voltage* CanManager::number_of_cells}},
-    {"limits/max_discharge_current", {&CanManager::limit_discharge_current_max, max_current}},
-    {"limits/max_charge_current", {&CanManager::limit_charge_current_max, max_current}},
-    {"battery/voltage", {&CanManager::battery_voltage, default_cell_voltage* CanManager::number_of_cells}},
-    {"battery/current", {&CanManager::battery_current, 0.f}},
-    {"battery/temp", {&CanManager::battery_temp, 12.f}},
-    {"battery/max_cell_temp", {&CanManager::cell_temp_max, 13.f}},
-    {"battery/min_cell_temp", {&CanManager::cell_temp_min, 11.f}},
-    {"battery/soc", {&CanManager::soc_percent, 50.f}},
-    {"battery/soh", {&CanManager::soh_percent, 100.f}},
-    {"battery/remaining_capacity_ah", {&CanManager::remaining_capacity_ah, 80.f}},
-    {"battery/full_capacity_ah", {&CanManager::full_capacity_ah, 160.f}},
-};
-
 void MqttManager::init() {
   if (module_topic.length() <= 0) {
     module_topic = MainVars::hostname + "/";
@@ -66,6 +45,7 @@ void MqttManager::init() {
   client.onConnect(onConnect);
   client.onMessage(onMessage);
   client.connect();
+  last_master_heartbeat_time = millis();
 }
 
 void MqttManager::loop() {
@@ -75,6 +55,14 @@ void MqttManager::loop() {
     } else {
       digitalWrite(LED_BUILTIN, LED_ON);
     }
+  }
+  unsigned long last_heartbeat = last_master_heartbeat_time;
+  unsigned long delta = millis() - last_heartbeat;
+  if (delta >= heartbeat_timeout_reboot_ms) {
+    log(String("DEBUG check: delta=") + String(delta) + ", limit=" + String(heartbeat_timeout_reboot_ms), false);
+    log(String(millis()) + " : " + String(last_heartbeat), false);
+    log("master heartbeat timeout - restarting!", false);
+    ESP.restart();
   }
   if (!client.connected() || messageQueue.empty()) {
     return;
@@ -89,7 +77,7 @@ void MqttManager::otaUpdate(const String& path) {
   log(String("ota started [") + path + "] (" + millis() + ")", false);
   NetworkClientSecure secure_client;
   secure_client.setCACert(trustRoot);
-  secure_client.setTimeout(12'000);
+  secure_client.setTimeout(12UL * 1000UL);
   httpUpdate.setLedPin(LED_BUILTIN, LED_ON);
   switch (httpUpdate.update(secure_client, String("https://") + ota_server + path)) {
     case HTTP_UPDATE_FAILED: {
@@ -130,6 +118,7 @@ void MqttManager::onMessage(char* topic, char* payload, int retain, int qos, boo
     return;
   }
   if (sTopic.equals("restart")) {
+    log("restart requested - restarting!", false);
     ESP.restart();
   }
   const bool isSet = sTopic.endsWith("/set");
@@ -146,8 +135,8 @@ void MqttManager::onMessage(char* topic, char* payload, int retain, int qos, boo
   } else {
     sTopic = sTopic.substring(0, sTopic.length() - 6);
   }
-  const auto it = valueMap.find(sTopic);
-  if (it == valueMap.end()) {
+  const auto it = CanManager::value_map.find(sTopic);
+  if (it == CanManager::value_map.end()) {
     return;
   }
   if (isSet) {
