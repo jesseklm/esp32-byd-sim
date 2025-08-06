@@ -122,17 +122,17 @@ bool CanManager::send(INT32U id, INT8U len, INT8U* buf) {
   }
   if (result == CAN_GETTXBFTIMEOUT) {
     Serial.println("Error sending - get tx buff time out!");
-    MqttManager::log("Error sending - get tx buff time out! " + String(id, HEX));
+    MqttManager::log("Error sending - get tx buff time out! 0x" + String(id, HEX));
     if (millis() - last_successful_send >= 3UL * 60UL * 1000UL) {
       MqttManager::log("tx buff timeout - restarting!", false);
       ESP.restart();
     }
   } else if (result == CAN_SENDMSGTIMEOUT) {
     Serial.println("Error sending - send msg timeout!");
-    MqttManager::log("Error sending - send msg timeout! " + String(id, HEX));
+    MqttManager::log("Error sending - send msg timeout! 0x" + String(id, HEX));
   } else {
     Serial.println("Error sending - unknown error!");
-    MqttManager::log("Error sending - unknown error! " + String(id, HEX));
+    MqttManager::log("Error sending - unknown error! 0x" + String(id, HEX));
   }
   return false;
 }
