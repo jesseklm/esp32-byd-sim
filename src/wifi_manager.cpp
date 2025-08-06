@@ -6,10 +6,6 @@
 #include "main_vars.h"
 #include "mqtt_manager.h"
 
-constexpr unsigned long sntp_timeout_ms = 10UL * 1000UL;
-constexpr unsigned long wifi_timeout_ms = 30UL * 1000UL;
-constexpr time_t min_time_s = 24UL * 60UL * 60UL;
-
 void WifiManager::connect() {
   Serial.println();
   Serial.printf("Connecting to %s.", ssid);

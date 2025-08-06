@@ -2,14 +2,23 @@
 
 #include <mcp_can.h>
 
+#include <map>
+
+struct ValueConfig {
+  float* valuePtr;
+  float defaultValue;
+};
+
 class CanManager {
  public:
   static constexpr uint32_t CAN_EXTENDED = 0x80000000;
   static constexpr uint32_t CAN_REMOTE_REQUEST = 0x40000000;
 
   static void init();
-  static bool send(INT32U id, INT8U len, INT8U *buf);
+  static bool send(INT32U id, INT8U len, INT8U* buf);
   static void loop();
+
+  static std::map<String, ValueConfig> value_map;
 
   static float number_of_cells;
 
@@ -32,7 +41,6 @@ class CanManager {
 
  private:
   static MCP_CAN can;
-  static const uint8_t CAN_INT;
   static bool init_failed;
   static unsigned long last_successful_send;
   static unsigned long last_send_2s;

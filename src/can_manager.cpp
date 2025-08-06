@@ -2,6 +2,8 @@
 
 #include <Arduino.h>
 
+#include <map>
+
 #include "config.h"
 #include "main_vars.h"
 #include "mqtt_manager.h"
@@ -14,28 +16,42 @@ float CanManager::limit_discharge_current_max;
 float CanManager::limit_charge_current_max;
 
 float CanManager::battery_voltage;
-float CanManager::battery_current = 0.f;
-float CanManager::battery_temp = 12.f;
+float CanManager::battery_current;
+float CanManager::battery_temp;
 
-float CanManager::cell_temp_max = 13.f;
-float CanManager::cell_temp_min = 11.f;
+float CanManager::cell_temp_max;
+float CanManager::cell_temp_min;
 
-float CanManager::soc_percent = 50.f;
-float CanManager::soh_percent = 100.f;
-float CanManager::remaining_capacity_ah = 80.f;
-float CanManager::full_capacity_ah = 160.f;
-
-const uint8_t CanManager::CAN_INT = CAN_INT_PIN;
+float CanManager::soc_percent;
+float CanManager::soh_percent;
+float CanManager::remaining_capacity_ah;
+float CanManager::full_capacity_ah;
 
 MCP_CAN CanManager::can(SS);
 
 unsigned long CanManager::last_successful_send = 0;
 
-unsigned long CanManager::last_send_2s = 0;
-unsigned long CanManager::last_send_10s = 0;
-unsigned long CanManager::last_send_60s = 0;
+unsigned long CanManager::last_send_2s;
+unsigned long CanManager::last_send_10s;
+unsigned long CanManager::last_send_60s;
 
 bool CanManager::init_failed = false;
+
+std::map<String, ValueConfig> CanManager::value_map = {
+    {"limits/max_voltage", {&limit_battery_voltage_max, max_cell_voltage* number_of_cells}},
+    {"limits/min_voltage", {&limit_battery_voltage_min, min_cell_voltage* number_of_cells}},
+    {"limits/max_discharge_current", {&limit_discharge_current_max, max_current}},
+    {"limits/max_charge_current", {&limit_charge_current_max, max_current}},
+    {"battery/voltage", {&battery_voltage, default_cell_voltage* number_of_cells}},
+    {"battery/current", {&battery_current, 0.f}},
+    {"battery/temp", {&battery_temp, 12.f}},
+    {"battery/max_cell_temp", {&cell_temp_max, 13.f}},
+    {"battery/min_cell_temp", {&cell_temp_min, 11.f}},
+    {"battery/soc", {&soc_percent, 50.f}},
+    {"battery/soh", {&soh_percent, 100.f}},
+    {"battery/remaining_capacity_ah", {&remaining_capacity_ah, 80.f}},
+    {"battery/full_capacity_ah", {&full_capacity_ah, 160.f}},
+};
 
 struct Message {
   unsigned long id;
@@ -73,11 +89,9 @@ T getValue(const uint8_t* data, const size_t start) {
 }
 
 void CanManager::init() {
-  limit_battery_voltage_max = max_cell_voltage * number_of_cells;
-  limit_battery_voltage_min = min_cell_voltage * number_of_cells;
-  limit_discharge_current_max = max_current;
-  limit_charge_current_max = max_current;
-  battery_voltage = default_cell_voltage * number_of_cells;
+  for (auto& [key, value] : value_map) {
+    *value.valuePtr = value.defaultValue;
+  }
   if (can.begin(MCP_ANY, CAN_500KBPS, MCP_16MHZ) == CAN_OK) {
     Serial.println("MCP2515 Initialized Successfully!");
   } else {
@@ -86,7 +100,7 @@ void CanManager::init() {
     init_failed = true;
   }
   can.setMode(MCP_NORMAL);
-  pinMode(CAN_INT, INPUT);
+  pinMode(can_int_pin, INPUT);
   const unsigned long now = millis();
   last_send_2s = now;
   last_send_10s = now + 333UL;
@@ -108,17 +122,17 @@ bool CanManager::send(INT32U id, INT8U len, INT8U* buf) {
   }
   if (result == CAN_GETTXBFTIMEOUT) {
     Serial.println("Error sending - get tx buff time out!");
-    MqttManager::log("Error sending - get tx buff time out!");
+    MqttManager::log("Error sending - get tx buff time out! " + String(id, HEX));
     if (millis() - last_successful_send >= 3UL * 60UL * 1000UL) {
       MqttManager::log("tx buff timeout - restarting!", false);
       ESP.restart();
     }
   } else if (result == CAN_SENDMSGTIMEOUT) {
     Serial.println("Error sending - send msg timeout!");
-    MqttManager::log("Error sending - send msg timeout!");
+    MqttManager::log("Error sending - send msg timeout! " + String(id, HEX));
   } else {
     Serial.println("Error sending - unknown error!");
-    MqttManager::log("Error sending - unknown error!");
+    MqttManager::log("Error sending - unknown error! " + String(id, HEX));
   }
   return false;
 }
@@ -151,7 +165,7 @@ void CanManager::loop() {
 void CanManager::sendLimits() {
   float limit_discharge = limit_discharge_current_max;
   float limit_charge = limit_charge_current_max;
-  if (millis() - MqttManager::last_master_heartbeat_time >= heartbeat_timeout) {
+  if (millis() - MqttManager::last_master_heartbeat_time >= heartbeat_timeout_limits_ms) {
     limit_discharge = 0;
     limit_charge = 0;
     MqttManager::log("Master Heartbeat missed!");
@@ -213,10 +227,10 @@ void CanManager::sendAlarm() {
 }
 
 void CanManager::readMessages() {
-  if (!digitalRead(CAN_INT)) {
+  if (!digitalRead(can_int_pin)) {
     const unsigned long start_time = millis();
     while (millis() - start_time <= 100) {
-      while (!digitalRead(CAN_INT)) {
+      while (!digitalRead(can_int_pin)) {
         readMessage();
       }
     }
