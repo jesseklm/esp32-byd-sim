@@ -1,8 +1,6 @@
 #include "can_manager.h"
 
-#include <driver/twai.h>
-
-#include <map>
+#include <cstring>
 
 #include "config.h"
 #include "esp32_can.h"
@@ -116,7 +114,7 @@ void CanManager::loop() {
     }
     return;
   }
-  readMessages();
+  ESP32Can::loop();
   if (millis() - last_send_2s >= 2UL * 1000UL) {
     last_send_2s = millis();
     sendLimits();
@@ -197,48 +195,26 @@ void CanManager::sendAlarm() {
   send(0x190, 8, data);
 }
 
-void CanManager::readMessages() {
-  // if (!digitalRead(can_int_pin)) {
-  //   const unsigned long start_time = millis();
-  //   while (millis() - start_time <= 100) {
-  //     while (!digitalRead(can_int_pin)) {
-  //       readMessage();
-  //     }
-  //   }
-  //   const uint8_t eflg = can.getError();
-  //   if (eflg & MCP_EFLG_RX1OVR || eflg & MCP_EFLG_RX0OVR) {
-  //     Serial.println("buffer overflow!");
-  //     MqttManager::log("buffer overflow!");
-  //     can.resetOverflowErrors();
-  //   }
-  // }
-}
+void CanManager::readMessage(const twai_message_t& message) {
+  const uint32_t rxId = message.identifier;
+  const uint8_t len = message.data_length_code;
+  uint8_t rxBuf[9] = {};
+  std::memcpy(rxBuf, message.data, len);
 
-void CanManager::readMessage() {
-  // unsigned long rxId;
-  // unsigned char len = 0;
-  // unsigned char rxBuf[9];
-  // // char msgString[128];
-  // // If CAN0_INT pin is low, read receive buffer
-  // can.readMsgBuf(&rxId, &len, rxBuf);
-  // // Read data: len = data length, buf = data byte(s)
-  // Serial.print("recv: ");
-
-  // if ((rxId & CAN_EXTENDED) == CAN_EXTENDED)
-  //   // Determine if ID is standard (11 bits) or extended (29 bits)
-  //   Serial.printf("Extended ID: 0x%.8lX  DLC: %1d  Data:", (rxId & 0x1FFFFFFF), len);
-  // else
-  //   Serial.printf("Standard ID: 0x%.3lX       DLC: %1d  Data:", rxId, len);
-
-  // if ((rxId & CAN_REMOTE_REQUEST) == CAN_REMOTE_REQUEST) {
-  //   // Determine if message is a remote request frame.
-  //   Serial.print(" REMOTE REQUEST FRAME");
-  // } else {
-  //   for (byte i = 0; i < len; i++) {
-  //     Serial.printf(" 0x%.2X", rxBuf[i]);
-  //   }
-  //   Serial.println();
-  // }
+  Serial.print("recv: ");
+  if (message.extd) {
+    Serial.printf("Extended ID: 0x%.8lX  DLC: %1d  Data:", rxId, len);
+  } else {
+    Serial.printf("Standard ID: 0x%.3lX       DLC: %1d  Data:", rxId, len);
+  }
+  if (message.rtr) {
+    Serial.print(" REMOTE REQUEST FRAME");
+  } else {
+    for (byte i = 0; i < len; i++) {
+      Serial.printf(" 0x%.2X", rxBuf[i]);
+    }
+    Serial.println();
+  }
 
   if (rxId == 0x91) {
     const auto wr_battery_voltage = getValue<uint16_t>(rxBuf, 0);

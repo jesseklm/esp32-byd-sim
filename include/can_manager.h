@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include <driver/twai.h>
 
 #include <map>
 
@@ -15,8 +16,9 @@ class CanManager {
   static constexpr uint32_t CAN_REMOTE_REQUEST = 0x40000000;
 
   static void init();
-  static bool send(uint32_t id, uint8_t len, uint8_t *buf);
+  static bool send(uint32_t id, uint8_t len, uint8_t* buf);
   static void loop();
+  static void readMessage(const twai_message_t& message);
 
   static std::map<String, ValueConfig> value_map;
 
@@ -45,8 +47,6 @@ class CanManager {
   static unsigned long last_send_2s;
   static unsigned long last_send_10s;
   static unsigned long last_send_60s;
-  static void readMessages();
-  static void readMessage();
   static void sendLimits();
   static void sendStates();
   static void sendBatteryInfo();

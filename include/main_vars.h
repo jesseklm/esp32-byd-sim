@@ -22,7 +22,8 @@ constexpr unsigned int min_time_s = 24U * 60U * 60U;
 #define LED_OFF LOW
 
 #ifdef LOLIN_C3_MINI
-constexpr uint8_t can_int_pin = 8;
+constexpr uint8_t can_tx_pin = 10;
+constexpr uint8_t can_rx_pin = 3;
 #elif defined(LOLIN_S2_MINI)
 constexpr uint8_t can_tx_pin = 35;
 constexpr uint8_t can_rx_pin = 9;
