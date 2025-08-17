@@ -195,6 +195,29 @@ void CanManager::sendAlarm() {
   send(0x190, 8, data);
 }
 
+String twaiToString(const twai_message_t &m) {
+  const bool ext = (m.flags & TWAI_MSG_FLAG_EXTD);
+  const uint8_t dlc = (m.data_length_code > 8) ? 8 : m.data_length_code;
+
+  char idbuf[9]; // 8 Hex + NUL
+  snprintf(idbuf, sizeof(idbuf), ext ? "%08X" : "%03X", static_cast<unsigned int>(m.identifier));
+
+  String s;
+  s.reserve(9 + 1 + dlc * 2);
+  s += idbuf;
+  s += '#';
+
+  // RTR -> no data -> only "ID#"
+  if (!(m.flags & TWAI_MSG_FLAG_RTR)) {
+    for (uint8_t i = 0; i < dlc; i++) {
+      char b[3];
+      snprintf(b, sizeof(b), "%02X", m.data[i]);
+      s += b;
+    }
+  }
+  return s;
+}
+
 void CanManager::readMessage(const twai_message_t& message) {
   const uint32_t rxId = message.identifier;
   const uint8_t len = message.data_length_code;
@@ -242,6 +265,6 @@ void CanManager::readMessage(const twai_message_t& message) {
       }
     }
   } else {
-    // MqttManager::log(fullLog);
+    MqttManager::log(twaiToString(message));
   }
 }

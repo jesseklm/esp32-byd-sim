@@ -67,16 +67,19 @@ void ESP32Can::loop() {
   twai_get_status_info(&twaistatus);
   if (alerts_triggered & TWAI_ALERT_ERR_PASS) {
     Serial.println("Alert: TWAI controller has become error passive.");
+    MqttManager::log("Alert: TWAI controller has become error passive.");
   }
   if (alerts_triggered & TWAI_ALERT_BUS_ERROR) {
     Serial.println("Alert: A (Bit, Stuff, CRC, Form, ACK) error has occurred on the bus.");
     Serial.printf("Bus error count: %d\n", twaistatus.bus_error_count);
+    MqttManager::log("Alert: A (Bit, Stuff, CRC, Form, ACK) error has occurred on the bus.");
   }
   if (alerts_triggered & TWAI_ALERT_RX_QUEUE_FULL) {
     Serial.println("Alert: The RX queue is full causing a received frame to be lost.");
     Serial.printf("RX buffered: %d\t", twaistatus.msgs_to_rx);
     Serial.printf("RX missed: %d\t", twaistatus.rx_missed_count);
     Serial.printf("RX overrun %d\n", twaistatus.rx_overrun_count);
+    MqttManager::log("Alert: The RX queue is full causing a received frame to be lost.");
   }
   if (alerts_triggered & TWAI_ALERT_RX_DATA) {
     twai_message_t message;
