@@ -241,7 +241,7 @@ void CanManager::readMessage(const twai_message_t& message) {
 
   if (rxId == 0x91) {
     const auto wr_battery_voltage = getValue<uint16_t>(rxBuf, 0);
-    const auto wr_battery_current = getValue<uint16_t>(rxBuf, 2);
+    const auto wr_battery_current = getValue<uint16_t>(rxBuf, 2); // int16_t ?
     const auto wr_temperature = getValue<uint16_t>(rxBuf, 4);
     MqttManager::publish("inverter/battery_voltage", static_cast<float>(wr_battery_voltage) * 0.1f);
     MqttManager::publish("inverter/battery_current", static_cast<float>(wr_battery_current) * 0.1f);
