@@ -142,8 +142,8 @@ void CanManager::sendLimits() {
   byte data[8]{};
   setBytes(data, 0, static_cast<uint16_t>(limit_battery_voltage_max * 10.f));  // 230V max
   setBytes(data, 2, static_cast<uint16_t>(limit_battery_voltage_min * 10.f));  // 170V min
-  setBytes(data, 4, static_cast<int16_t>(limit_discharge * 10.f));             // 25,6A max discharge
-  setBytes(data, 6, static_cast<int16_t>(limit_charge * 10.f));                // 25,6A max charge
+  setBytes(data, 4, static_cast<uint16_t>(limit_discharge * 10.f));            // 25,6A max discharge
+  setBytes(data, 6, static_cast<uint16_t>(limit_charge * 10.f));               // 25,6A max charge
   if (send(0x110, 8, data)) {
     MqttManager::publish("limits/max_voltage", limit_battery_voltage_max);
     MqttManager::publish("limits/min_voltage", limit_battery_voltage_min);
@@ -157,7 +157,7 @@ void CanManager::sendBatteryInfo() {
   setBytes(data, 0, static_cast<int16_t>(battery_voltage * 10.f));  // 215V battery voltage
   setBytes(data, 2, static_cast<int16_t>(battery_current * 10.f));  // 4,3A battery current
   setBytes(data, 4, static_cast<int16_t>(battery_temp * 10.f));     // 22°C battery temp
-  setBytes(data, 6, static_cast<int16_t>(776));                     // ???
+  setBytes(data, 6, static_cast<int16_t>(776));                     // some sort of status bytes?
   if (send(0x1d0, 8, data)) {
     MqttManager::publish("battery/voltage", battery_voltage);
     MqttManager::publish("battery/current", battery_current);
@@ -169,7 +169,7 @@ void CanManager::sendCellInfo() {
   byte data[8]{};
   setBytes(data, 0, static_cast<uint16_t>(cell_temp_max * 10.f));  // 23°C max cell temp
   setBytes(data, 2, static_cast<uint16_t>(cell_temp_min * 10.f));  // 22°C min cell temp
-  if (send(0x210, 8, data)) {
+  if (send(0x210, 8, data)) { // sungrow not checking data?
     MqttManager::publish("battery/max_cell_temp", cell_temp_max);
     MqttManager::publish("battery/min_cell_temp", cell_temp_min);
   }
@@ -180,8 +180,8 @@ void CanManager::sendStates() {
   byte data[8]{};
   setBytes(data, 0, static_cast<uint16_t>(soc_percent * 100.f));           // 28,7% soc % Vrfd
   setBytes(data, 2, static_cast<uint16_t>(soh_percent * 100.f));           // 100% soh % Vrfd
-  setBytes(data, 4, static_cast<uint16_t>(remaining_capacity_ah * 10.f));  // remaining capacity 1/10Ah
-  setBytes(data, 6, static_cast<uint16_t>(full_capacity_ah * 10.f));       // fully charged capacity 1/10Ah
+  setBytes(data, 4, static_cast<uint16_t>(remaining_capacity_ah * 10.f));  // remaining capacity 1/10Ah (ignored by sungrow?)
+  setBytes(data, 6, static_cast<uint16_t>(full_capacity_ah * 10.f));       // fully charged capacity 1/10Ah (ignored by sungrow?)
   if (send(0x150, 8, data)) {
     MqttManager::publish("battery/soc", soc_percent);
     MqttManager::publish("battery/soh", soh_percent);
